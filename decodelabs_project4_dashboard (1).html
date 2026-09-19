@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revenue is spread evenly, but 41% of orders never complete</title>
+<style>
+:root{
+  --bg:#f3f5f8; --panel:#ffffff; --ink:#15202e; --muted:#586374;
+  --grey:#c5cad2; --grey-mid:#9ba3af; --accent:#1d5fd1; --accent-soft:#e4edfc;
+  --rule:#dde2e9;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10151c; --panel:#171e28; --ink:#e8edf4; --muted:#9aa6b6;
+    --grey:#3a4453; --grey-mid:#5c697b; --accent:#5b9bff; --accent-soft:#1a2a45;
+    --rule:#263041;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10151c; --panel:#171e28; --ink:#e8edf4; --muted:#9aa6b6;
+  --grey:#3a4453; --grey-mid:#5c697b; --accent:#5b9bff; --accent-soft:#1a2a45;
+  --rule:#263041;
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-size:16px; line-height:1.5;
+}
+.wrap{max-width:980px; margin:0 auto; padding:40px 24px 64px}
+h1,h2{font-family:Georgia,"Times New Roman",serif; font-weight:700; letter-spacing:-0.01em; margin:0}
+h1{font-size:clamp(28px,4.4vw,42px); line-height:1.15; max-width:22ch}
+h2{font-size:clamp(21px,2.8vw,28px); line-height:1.25; max-width:30ch}
+.sub{color:var(--muted); margin:14px 0 0; max-width:62ch}
+.kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:0; margin-top:32px; border-top:2px solid var(--ink)}
+.kpi{padding:16px 16px 4px 0}
+.kpi + .kpi{padding-left:16px; border-left:1px solid var(--rule)}
+.kpi b{display:block; font-family:Georgia,serif; font-size:clamp(24px,3.6vw,34px); line-height:1.1}
+.kpi span{color:var(--muted); font-size:14px}
+.kpi.hot b{color:var(--accent)}
+section{margin-top:56px; padding-top:28px; border-top:1px solid var(--rule)}
+.chart{margin-top:24px}
+.note{margin-top:18px; padding:12px 16px; background:var(--accent-soft); border-left:4px solid var(--accent); max-width:70ch}
+.note strong{font-weight:700}
+.foot{margin-top:14px; color:var(--muted); font-size:13px}
+
+/* horizontal bars */
+.hrow{display:grid; grid-template-columns:96px 1fr; align-items:center; gap:12px; padding:5px 0}
+.hlabel{font-size:15px; text-align:right}
+.htrack{position:relative; height:30px; border-left:2px solid var(--ink)}
+.hbar{height:100%; background:var(--grey); display:flex; align-items:center; transition:filter .15s}
+.hrow.hl .hbar{background:var(--accent)}
+.hrow.hl .hlabel{font-weight:700}
+.hval{position:absolute; top:0; height:100%; display:flex; align-items:center; padding-left:8px; font-size:14px; white-space:nowrap; font-variant-numeric:tabular-nums}
+.hrow.hl .hval{font-weight:700; color:var(--accent)}
+.hrow:hover .hbar{filter:brightness(.92)}
+
+/* columns */
+.cols{display:flex; align-items:flex-end; gap:clamp(12px,4vw,44px); height:260px; border-bottom:2px solid var(--ink); padding:0 8px; max-width:640px}
+.col{flex:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:stretch}
+.col .cv{text-align:center; font-size:14px; font-weight:600; padding-bottom:4px; font-variant-numeric:tabular-nums}
+.col .cb{background:var(--grey)}
+.col.hl .cb{background:var(--accent)}
+.col.hl .cv{color:var(--accent); font-weight:700}
+.clabels{display:flex; gap:clamp(12px,4vw,44px); padding:8px 8px 0; max-width:640px}
+.clabels div{flex:1; text-align:center; font-size:14px; line-height:1.3}
+.clabels small{display:block; color:var(--muted)}
+.clabels .hl{font-weight:700}
+
+/* donut */
+.donut{width:100%; max-width:640px; height:auto; display:block}
+.donut text{fill:var(--ink); font-family:"Segoe UI",Roboto,Arial,sans-serif}
+.donut .sm{fill:var(--muted)}
+.strip{display:flex; flex-wrap:wrap; gap:6px 22px; margin-top:12px; font-size:14px; color:var(--muted)}
+.strip b{color:var(--ink); font-weight:600}
+
+/* SCR */
+.scr{display:grid; grid-template-columns:repeat(3,1fr); gap:0; margin-top:24px; border-top:2px solid var(--ink)}
+.scr div{padding:16px 20px 8px 0}
+.scr div + div{padding-left:20px; border-left:1px solid var(--rule)}
+.scr h3{margin:0 0 6px; font-size:16px}
+.scr p{margin:0 0 10px; font-size:15px}
+.scr ul{margin:0; padding-left:18px; font-size:15px}
+.scr li{margin-bottom:6px}
+.sowhat{margin-top:22px; font-family:Georgia,serif; font-size:clamp(19px,2.4vw,24px); line-height:1.35; max-width:40ch}
+
+#tip{position:fixed; pointer-events:none; z-index:10; background:var(--ink); color:var(--bg); font-size:13px; padding:6px 10px; max-width:240px; opacity:0; transition:opacity .1s}
+@media (max-width:720px){
+  .kpis{grid-template-columns:1fr 1fr}
+  .kpi:nth-child(3){padding-left:0; border-left:0}
+  .scr{grid-template-columns:1fr}
+  .scr div + div{padding-left:0; border-left:0; border-top:1px solid var(--rule); padding-top:16px}
+  .hrow{grid-template-columns:76px 1fr; gap:8px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Revenue is spread evenly, but 41% of orders never complete</h1>
+  <p class="sub">1,200 orders from the cleaned DecodeLabs order dataset, summarised from the Project 3 SQL results. Hover any bar for detail.</p>
+  <div class="kpis">
+    <div class="kpi"><b>$1.26M</b><span>Total revenue</span></div>
+    <div class="kpi"><b>1,200</b><span>Orders</span></div>
+    <div class="kpi"><b>$1,054</b><span>Average order value</span></div>
+    <div class="kpi hot"><b>▲ 41.4%</b><span>Cancelled or returned</span></div>
+  </div>
+</header>
+
+<section>
+  <h2>Chair and Printer lead at 15.5% of revenue each, yet no product dominates</h2>
+  <div class="chart" id="c-product" aria-label="Revenue by product, horizontal bar chart"></div>
+  <div class="note"><strong>So what:</strong> the top three products together earn 46.1% of revenue, so the catalog is well diversified. Phone has the highest average unit price ($375) but the lowest revenue, because it has the fewest orders (156).</div>
+  <p class="foot">Revenue in US dollars, axis starts at $0. Source: Project 3, query 3 and 6.</p>
+</section>
+
+<section>
+  <h2>Instagram is the top acquisition channel with $275K from 259 orders</h2>
+  <div class="chart" id="c-ref" aria-label="Revenue by referral source, horizontal bar chart"></div>
+  <div class="note"><strong>So what:</strong> Instagram and Email together bring in $537K, 42.5% of all revenue. Referral is the weakest channel at $227K.</div>
+  <p class="foot">Revenue in US dollars, axis starts at $0. Source: Project 3, query 4.</p>
+</section>
+
+<section>
+  <h2>Only 19% of orders reach Delivered, while 41% end Cancelled or Returned</h2>
+  <div class="chart"><svg id="c-status" class="donut" viewBox="0 0 640 300" role="img" aria-label="Order status split into three groups"></svg></div>
+  <div class="strip" id="status-strip"></div>
+  <div class="note"><strong>So what:</strong> cancellations and returns (497 orders) outnumber deliveries (231) by more than two to one. This is the biggest operational issue in the data.</div>
+  <p class="foot">Groups: Problem = Cancelled + Returned, In progress = Pending + Shipped. Source: Project 3, query 7.</p>
+</section>
+
+<section>
+  <h2>Coupons do not change basket size: every group averages within $35 of the others</h2>
+  <div class="chart">
+    <div class="cols" id="c-coupon-cols" aria-label="Average order value by coupon code, column chart"></div>
+    <div class="clabels" id="c-coupon-labels"></div>
+  </div>
+  <div class="note"><strong>So what:</strong> average order value ranges from $1,036 to $1,070, a spread of only 3.3%. The four coupon groups are also about the same size (286 to 313 orders), so these numbers give no sign that any coupon lifts or shrinks orders.</div>
+  <p class="foot">Average order value in US dollars, axis starts at $0. Highlighted column is the No Coupon baseline. Source: Project 3, query 8.</p>
+</section>
+
+<section>
+  <h2>Keep the product mix, back the top channels, and fix order completion first</h2>
+  <div class="scr">
+    <div>
+      <h3>Situation</h3>
+      <p>1,200 orders brought in $1.26M across seven products and five channels. Revenue per product sits between 12% and 15.5%.</p>
+    </div>
+    <div>
+      <h3>Complication</h3>
+      <p>Only 231 orders (19%) are Delivered. 497 (41%) are Cancelled or Returned, and coupons show no effect on basket size.</p>
+    </div>
+    <div>
+      <h3>Resolution</h3>
+      <ul>
+        <li>Break down cancellations and returns by product and payment method.</li>
+        <li>Prioritise Instagram and Email, the two strongest channels.</li>
+        <li>Test coupons for conversion before deepening discounts.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="sowhat">Next step: find out why 4 in 10 orders fail, because that is where the most revenue is at stake.</p>
+  <p class="foot">Data: DecodeLabs_Week2_EDA_Dua.xlsx (Sheet1), 1,200 orders, analysed with SQL in Project 3. Prepared by Dua for DecodeLabs Project 4: Data Visualization.</p>
+</section>
+
+</div>
+<div id="tip"></div>
+
+<script>
+(function(){
+  var products=[
+    {n:"Chair",orders:178,rev:195620.11,unit:355.66,pct:15.47},
+    {n:"Printer",orders:181,rev:195612.61,unit:351.71,pct:15.47},
+    {n:"Laptop",orders:173,rev:192126.56,unit:357.71,pct:15.19},
+    {n:"Tablet",orders:179,rev:186568.95,unit:367.68,pct:14.75},
+    {n:"Monitor",orders:163,rev:175651.41,unit:358.66,pct:13.89},
+    {n:"Desk",orders:170,rev:167459.93,unit:329.61,pct:13.24},
+    {n:"Phone",orders:156,rev:151722.39,unit:375.22,pct:12.00}
+  ];
+  var refs=[
+    {n:"Instagram",orders:259,rev:275285.45},
+    {n:"Email",orders:250,rev:261808.55},
+    {n:"Google",orders:241,rev:250441.48},
+    {n:"Facebook",orders:228,rev:250410.90},
+    {n:"Referral",orders:222,rev:226815.58}
+  ];
+  var status=[
+    {n:"Cancelled",v:250},{n:"Returned",v:247},{n:"Pending",v:237},{n:"Shipped",v:235},{n:"Delivered",v:231}
+  ];
+  var coupons=[
+    {n:"FREESHIP",orders:313,aov:1070.41},
+    {n:"No Coupon",orders:309,aov:1043.37},
+    {n:"WINTER15",orders:292,aov:1035.90},
+    {n:"SAVE10",orders:286,aov:1065.87}
+  ];
+
+  var tip=document.getElementById("tip");
+  function money(v){return "$"+Math.round(v).toLocaleString("en-US");}
+  function money2(v){return "$"+v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function attachTip(el,text){
+    el.addEventListener("mousemove",function(e){
+      tip.textContent=text; tip.style.opacity=1;
+      tip.style.left=Math.min(e.clientX+14,window.innerWidth-250)+"px";
+      tip.style.top=(e.clientY+14)+"px";
+    });
+    el.addEventListener("mouseleave",function(){tip.style.opacity=0;});
+  }
+
+  function hbars(id,rows,valueText,tipText,hlSet){
+    var el=document.getElementById(id);
+    var max=Math.max.apply(null,rows.map(function(r){return r.rev;}));
+    var axis=max*1.32; // zero baseline, room on the right for direct labels
+    rows.forEach(function(r){
+      var hl=hlSet.indexOf(r.n)>-1;
+      var row=document.createElement("div");
+      row.className="hrow"+(hl?" hl":"");
+      var w=(r.rev/axis*100);
+      row.innerHTML='<div class="hlabel">'+(hl?"▲ ":"")+r.n+'</div>'+
+        '<div class="htrack"><div class="hbar" style="width:'+w+'%"></div>'+
+        '<div class="hval" style="left:'+w+'%">'+valueText(r)+'</div></div>';
+      attachTip(row,tipText(r));
+      el.appendChild(row);
+    });
+  }
+
+  hbars("c-product",products,
+    function(r){return money(r.rev)+"  ("+r.pct.toFixed(1)+"%)";},
+    function(r){return r.n+": "+r.orders+" orders, avg unit price "+money2(r.unit);},
+    ["Chair","Printer"]);
+
+  hbars("c-ref",refs,
+    function(r){return money(r.rev);},
+    function(r){return r.n+": "+r.orders+" orders, "+money2(r.rev)+" revenue";},
+    ["Instagram"]);
+
+  /* donut: three groups */
+  var total=1200;
+  var groups=[
+    {n:"Cancelled or Returned",v:497,color:"var(--accent)",bold:true,arrow:"▲ "},
+    {n:"Pending or Shipped",v:472,color:"var(--grey-mid)",bold:false,arrow:""},
+    {n:"Delivered",v:231,color:"var(--grey)",bold:false,arrow:""}
+  ];
+  var svg=document.getElementById("c-status"), NS="http://www.w3.org/2000/svg";
+  var cx=320, cy=150, r=78, sw=38, gap=1.6;
+  function pt(a,rad){var t=(a-90)*Math.PI/180; return [cx+rad*Math.cos(t), cy+rad*Math.sin(t)];}
+  var start=0;
+  groups.forEach(function(g){
+    var ang=g.v/total*360, a0=start+gap/2, a1=start+ang-gap/2, mid=start+ang/2;
+    var p0=pt(a0,r), p1=pt(a1,r), large=(a1-a0)>180?1:0;
+    var path=document.createElementNS(NS,"path");
+    path.setAttribute("d","M"+p0[0]+" "+p0[1]+" A"+r+" "+r+" 0 "+large+" 1 "+p1[0]+" "+p1[1]);
+    path.setAttribute("fill","none"); path.setAttribute("stroke",g.color); path.setAttribute("stroke-width",sw);
+    attachTip(path,g.n+": "+g.v+" orders ("+(g.v/total*100).toFixed(1)+"%)");
+    svg.appendChild(path);
+    // direct label
+    var a=pt(mid,r+sw/2+4), b=pt(mid,r+sw/2+26);
+    var line=document.createElementNS(NS,"line");
+    line.setAttribute("x1",a[0]); line.setAttribute("y1",a[1]); line.setAttribute("x2",b[0]); line.setAttribute("y2",b[1]);
+    line.setAttribute("stroke","var(--grey-mid)"); svg.appendChild(line);
+    var right=b[0]>=cx, tx=b[0]+(right?8:-8), anchor=right?"start":"end";
+    var t1=document.createElementNS(NS,"text");
+    t1.setAttribute("x",tx); t1.setAttribute("y",b[1]-2); t1.setAttribute("text-anchor",anchor);
+    t1.setAttribute("font-size","16"); t1.setAttribute("font-weight",g.bold?"700":"600");
+    if(g.bold) t1.setAttribute("style","fill:var(--accent)");
+    t1.textContent=g.arrow+(g.v/total*100).toFixed(1)+"%";
+    svg.appendChild(t1);
+    var t2=document.createElementNS(NS,"text");
+    t2.setAttribute("x",tx); t2.setAttribute("y",b[1]+16); t2.setAttribute("text-anchor",anchor);
+    t2.setAttribute("font-size","13"); t2.setAttribute("class","sm");
+    t2.textContent=g.n+", "+g.v+" orders";
+    svg.appendChild(t2);
+    start+=ang;
+  });
+  var c1=document.createElementNS(NS,"text");
+  c1.setAttribute("x",cx); c1.setAttribute("y",cy+2); c1.setAttribute("text-anchor","middle"); c1.setAttribute("font-size","26"); c1.setAttribute("font-weight","700");
+  c1.setAttribute("style","font-family:Georgia,serif"); c1.textContent="1,200";
+  svg.appendChild(c1);
+  var c2=document.createElementNS(NS,"text");
+  c2.setAttribute("x",cx); c2.setAttribute("y",cy+22); c2.setAttribute("text-anchor","middle"); c2.setAttribute("font-size","13"); c2.setAttribute("class","sm");
+  c2.textContent="orders";
+  svg.appendChild(c2);
+
+  var strip=document.getElementById("status-strip");
+  strip.innerHTML=status.map(function(s){return s.n+" <b>"+s.v+"</b>";}).join("");
+
+  /* coupon columns, zero baseline */
+  var colsEl=document.getElementById("c-coupon-cols"), labEl=document.getElementById("c-coupon-labels");
+  var axisMax=1200;
+  coupons.forEach(function(c){
+    var hl=c.n==="No Coupon";
+    var col=document.createElement("div"); col.className="col"+(hl?" hl":"");
+    col.innerHTML='<div class="cv">'+money(c.aov)+'</div><div class="cb" style="height:'+(c.aov/axisMax*100*0.86)+'%"></div>';
+    attachTip(col,c.n+": "+c.orders+" orders, average order value "+money2(c.aov));
+    colsEl.appendChild(col);
+    var lab=document.createElement("div"); lab.className=hl?"hl":"";
+    lab.innerHTML=(hl?"▲ ":"")+c.n+"<small>"+c.orders+" orders</small>";
+    labEl.appendChild(lab);
+  });
+})();
+</script>
+</body>
+</html>
